@@ -44,6 +44,9 @@ class Prefs(ctx: Context) {
     var pvW: Float
         get() = sp.getFloat("pvW", 0f)
         set(v) = sp.edit().putFloat("pvW", v).apply()
+    var raw: String // сирі відповіді батареї для діагностики
+        get() = sp.getString("raw", "") ?: ""
+        set(v) = sp.edit().putString("raw", v).apply()
     var temp: Float
         get() = sp.getFloat("temp", Float.NaN)
         set(v) = sp.edit().putFloat("temp", v).apply()

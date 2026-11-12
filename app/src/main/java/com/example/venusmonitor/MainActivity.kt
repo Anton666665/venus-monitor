@@ -20,6 +20,7 @@ import kotlin.math.roundToInt
 class MainActivity : Activity() {
     private lateinit var p: Prefs
     private lateinit var status: TextView
+    private lateinit var diag: TextView
     private lateinit var etIp: EditText
     private lateinit var etCap: EditText
     private lateinit var etPct: EditText
@@ -42,6 +43,8 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40) }
         status = TextView(this).apply { textSize = 18f }
         root.addView(status)
+        diag = TextView(this).apply { textSize = 10f; typeface = android.graphics.Typeface.MONOSPACE; setPadding(0, 16, 0, 0) }
+        root.addView(diag)
 
         etIp = field(root, "IP батареї (Open API має бути увімкнений у додатку Marstek)", p.ip, false)
         root.addView(Button(this).apply {
@@ -123,10 +126,11 @@ class MainActivity : Activity() {
             append("🔋 ${p.soc}% · можна витратити ${Calc.remainingWh(p).roundToInt()} Вт·год (з ${p.cap * p.pct / 100})\n")
             append(Calc.gridText(p)).append("\n")
             append(Calc.stateLine(p)).append("\n")
+            append(Calc.loadLine(p)).append("\n")
             append(Calc.etaLine(p)).append("\n\n")
-            append("реальне навантаження: ${p.ema.roundToInt()} Вт\n")
             append("ongrid=${p.onW} offgrid=${p.offW} bat=${p.batW} pv=${p.pvW}\n")
             append(if (age > 120) "⚠ немає зв'язку вже $age с (останні дані $time)" else "оновлено $time")
         }
+        diag.text = "Діагностика:\n" + p.raw
     }
 }

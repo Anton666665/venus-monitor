@@ -5,10 +5,11 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import kotlin.math.roundToInt
 
 /** Marstek Open API: UDP + JSON-RPC (за замовчуванням порт 30000). */
 object MarstekClient {
-    data class Status(val soc: Int, val pvW: Double, val ongridW: Double, val offgridW: Double, val batW: Double, val tempC: Double)
+    data class Status(val soc: Int, val pvW: Double, val ongridW: Double, val offgridW: Double, val batW: Double, val tempC: Double, val raw: String)
 
     // Батарея відповідає на той самий порт, тому локальний сокет теж прив'язуємо до нього
     private fun socket(port: Int, timeoutMs: Int): DatagramSocket {
@@ -27,28 +28,54 @@ object MarstekClient {
         return JSONObject(String(p.data, 0, p.length)).optJSONObject("result")
     }
 
+    private fun nz(d: Double): Double = if (d.isNaN()) 0.0 else d
+
     fun status(ip: String, port: Int): Status? {
         try {
             socket(port, 3000).use { s ->
-                val st = call(s, ip, port, "ES.GetStatus", JSONObject().put("id", 0)) ?: return null
-                var soc = st.optInt("bat_soc", -1)
-                var on = st.optDouble("ongrid_power", Double.NaN)
-                var off = st.optDouble("offgrid_power", Double.NaN)
-                if (soc < 0 || on.isNaN() || off.isNaN()) {
-                    val m = try { call(s, ip, port, "ES.GetMode", JSONObject().put("id", 0)) } catch (e: Exception) { null }
-                    if (m != null) {
-                        if (soc < 0) soc = m.optInt("bat_soc", -1)
-                        if (on.isNaN()) on = m.optDouble("ongrid_power", Double.NaN)
-                        if (off.isNaN()) off = m.optDouble("offgrid_power", Double.NaN)
+                val sb = StringBuilder()
+                fun q(method: String): JSONObject? {
+                    return try {
+                        val r = call(s, ip, port, method, JSONObject().put("id", 0))
+                        sb.append(method).append(": ").append(r?.toString() ?: "null").append("\n")
+                        r
+                    } catch (e: Exception) {
+                        sb.append(method).append(": ").append(e.javaClass.simpleName).append("\n")
+                        null
                     }
                 }
-                if (soc < 0) return null
-                val b = try { call(s, ip, port, "Bat.GetStatus", JSONObject().put("id", 0)) } catch (e: Exception) { null }
-                val temp = b?.optDouble("bat_temp", Double.NaN) ?: Double.NaN
+                val st = q("ES.GetStatus") ?: return null
+                val mode = q("ES.GetMode")
+                val bat = q("Bat.GetStatus")
+                val all = listOfNotNull(st, mode, bat)
+                fun num(vararg keys: String): Double {
+                    for (j in all) for (k in keys) {
+                        if (j.has(k)) {
+                            val v = j.optDouble(k, Double.NaN)
+                            if (!v.isNaN()) return v
+                        }
+                    }
+                    return Double.NaN
+                }
+                fun findTemp(): Double {
+                    for (j in all) {
+                        val ks = j.keys()
+                        while (ks.hasNext()) {
+                            val k = ks.next()
+                            if (k.contains("temp", true)) {
+                                val v = j.optDouble(k, Double.NaN)
+                                if (!v.isNaN()) return v
+                            }
+                        }
+                    }
+                    return Double.NaN
+                }
+                val soc = num("bat_soc", "soc")
+                if (soc.isNaN()) return null
                 return Status(
-                    soc, st.optDouble("pv_power", 0.0),
-                    if (on.isNaN()) 0.0 else on, if (off.isNaN()) 0.0 else off,
-                    st.optDouble("bat_power", 0.0), temp
+                    soc.roundToInt(), nz(num("pv_power")),
+                    nz(num("ongrid_power")), nz(num("offgrid_power")),
+                    nz(num("bat_power")), findTemp(), sb.toString()
                 )
             }
         } catch (e: Exception) {

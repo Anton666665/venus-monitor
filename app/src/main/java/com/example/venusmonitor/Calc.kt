@@ -29,9 +29,14 @@ object Calc {
     }
 
     /** 1 = заряд, -1 = розряд, 0 = очікування. */
+    // Якщо батарея не віддає bat_power, а світла немає — це точно розряд із потужністю навантаження
+    private fun fallback(p: Prefs) = abs(p.batW) < 20f && p.lastGrid == 0 && p.ema >= 20f
+
+    private fun powerW(p: Prefs): Int = if (fallback(p)) p.ema.roundToInt() else abs(p.batW).roundToInt()
+
     fun direction(p: Prefs): Int {
         val b = p.batW
-        if (abs(b) < 20f) return 0
+        if (abs(b) < 20f) return if (fallback(p)) -1 else 0
         val plusIsCharge = p.signMode == 1 || (p.signMode == 0 && p.dischargeSign != 1)
         return if ((b > 0) == plusIsCharge) 1 else -1
     }
@@ -47,14 +52,16 @@ object Calc {
     }
 
     fun stateLine(p: Prefs): String {
-        val t = if (p.temp.isNaN()) "" else " · 🌡 ${p.temp.roundToInt()}°C"
-        val w = abs(p.batW).roundToInt()
+        val t = if (p.temp.isNaN()) " · 🌡 н/д" else " · 🌡 ${p.temp.roundToInt()}°C"
+        val w = powerW(p)
         return when (direction(p)) {
             1 -> "⬆ Заряд $w Вт$t"
             -1 -> "⬇ Розряд $w Вт$t"
             else -> "⏸ Очікування$t"
         }
     }
+
+    fun loadLine(p: Prefs): String = "🏠 Споживання: ${p.ema.roundToInt()} Вт"
 
     fun etaLine(p: Prefs): String = when {
         direction(p) == 1 -> "⏱ до повного заряду: " + fmt(toFull(p))

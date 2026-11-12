@@ -40,11 +40,13 @@ class VenusWidget : AppWidgetProvider() {
                 rv.setTextViewText(R.id.w_main, "Venus: немає даних")
                 rv.setTextViewText(R.id.w_grid, "")
                 rv.setTextViewText(R.id.w_state, "")
+                rv.setTextViewText(R.id.w_load, "")
                 rv.setTextViewText(R.id.w_eta, "")
             } else {
                 rv.setTextViewText(R.id.w_main, "🔋 ${p.soc}% · ${Calc.remainingWh(p).roundToInt()} Вт·год")
                 rv.setTextViewText(R.id.w_grid, Calc.gridText(p))
                 rv.setTextViewText(R.id.w_state, Calc.stateLine(p))
+                rv.setTextViewText(R.id.w_load, Calc.loadLine(p))
                 rv.setTextViewText(R.id.w_eta, Calc.etaLine(p))
             }
             val time = if (p.ts > 0) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(p.ts)) else "—"

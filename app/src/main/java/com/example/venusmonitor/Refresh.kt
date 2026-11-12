@@ -26,6 +26,7 @@ object Refresh {
             p.batW = st.batW.toFloat()
             p.pvW = st.pvW.toFloat()
             p.temp = st.tempC.toFloat()
+            p.raw = st.raw
             p.ts = now
         }
         updateGrid(ctx, p, st)
