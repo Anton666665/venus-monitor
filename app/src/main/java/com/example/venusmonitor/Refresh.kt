@@ -1,25 +1,28 @@
 package com.example.venusmonitor
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 object Refresh {
-    /** Блокуючий виклик — запускати не з головного потоку. */
-    fun run(ctx: Context): Boolean {
+    private val lock = Any()
+
+    /** Blocking call — run it off the main thread. Calls are serialized (one UDP socket at a time). */
+    fun run(ctx: Context): Boolean = synchronized(lock) { runInner(ctx) }
+
+    private fun runInner(ctx: Context): Boolean {
         val p = Prefs(ctx)
         val st = if (p.ip.isBlank()) null else MarstekClient.status(p.ip, p.port)
         if (st != null) {
             val now = System.currentTimeMillis()
-            val load = abs(st.ongridW) + abs(st.offgridW)
-            // Якщо дані давно не оновлювались — беремо нове значення без згладжування
+            val load = (max(st.ongridW, 0.0) + max(st.offgridW, 0.0)).toFloat()
+            // After a long gap take the new value as is instead of smoothing
             val fresh = p.ts == 0L || p.ema <= 0f || now - p.ts > 120_000
-            p.ema = if (fresh) load.toFloat() else (0.3 * load + 0.7 * p.ema).toFloat()
+            p.ema = if (fresh) load else 0.3f * load + 0.7f * p.ema
             p.soc = st.soc
             p.onW = st.ongridW.toFloat()
             p.offW = st.offgridW.toFloat()
@@ -27,40 +30,62 @@ object Refresh {
             p.pvW = st.pvW.toFloat()
             p.temp = st.tempC.toFloat()
             p.raw = st.raw
+            if (!st.capWh.isNaN() && st.capWh > 500) p.capDev = st.capWh.roundToInt()
             p.ts = now
         }
         updateGrid(ctx, p, st)
-        // Коли світла точно немає, розряд батареї показує, який знак у "bat_power" означає розряд
-        if (st != null && p.lastGrid == 0 && abs(st.batW) > 30) p.dischargeSign = if (st.batW > 0) 1 else -1
-        VenusWidget.updateAll(ctx)
+        checkLoad(ctx, p)
+        Widgets.updateAll(ctx)
         return st != null
     }
 
     private fun updateGrid(ctx: Context, p: Prefs, st: MarstekClient.Status?) {
-        val now: Int = if (p.gridMode == 1) {
-            // Телефон заряджається від розетки (не від EPS) → є світло
+        val cand: Int = if (p.gridMode == 1) {
+            // Phone charging from a wall outlet (not from the battery) means power is on
             val i = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             if ((i?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0) 1 else 0
+        } else if (st == null) {
+            -1
         } else {
-            // Евристика: навантаження живиться з off-grid виходу, а з мережі нічого нема → світла немає
-            if (st == null) p.lastGrid else {
-                val on = abs(st.ongridW)
-                val off = abs(st.offgridW)
-                if (off > 15 && on < 15) 0 else if (on >= 15) 1 else p.lastGrid
-            }
+            // Heuristic: the load is fed from the backup output and nothing comes from the grid → no power
+            val on = abs(st.ongridW)
+            val off = abs(st.offgridW)
+            if (off > 15 && on < 15) 0 else if (on >= 15) 1 else -1
         }
-        if (now == -1 || now == p.lastGrid) return
-        if (p.lastGrid != -1) notify(ctx, if (now == 1) "💡 Світло з'явилось" else "🔌 Світло зникло")
-        // На початку відключення стартуємо з реального навантаження, а не з "зарядного" значення
-        if (now == 0 && st != null) p.ema = (abs(st.ongridW) + abs(st.offgridW)).toFloat()
-        p.lastGrid = now
-        p.since = System.currentTimeMillis()
+        if (cand == -1) { p.pend = -2; p.pendCount = 0; return }
+        if (cand == p.lastGrid) { p.pendCount = 0; p.pend = -2; return }
+        if (p.lastGrid != -1) {
+            // A change must be seen twice in a row (once if background monitoring is off) to avoid false alerts
+            if (p.pend == cand) p.pendCount += 1 else { p.pend = cand; p.pendCount = 1 }
+            if (p.pendCount < (if (p.monitor) 2 else 1)) return
+        }
+        switchGrid(ctx, p, st, cand)
     }
 
-    private fun notify(ctx: Context, text: String) {
-        val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel("grid", "Світло", NotificationManager.IMPORTANCE_HIGH))
-        nm.notify(1, Notification.Builder(ctx, "grid")
-            .setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(text).build())
+    private fun switchGrid(ctx: Context, p: Prefs, st: MarstekClient.Status?, cand: Int) {
+        val now = System.currentTimeMillis()
+        if (p.lastGrid != -1 && p.since > 0) {
+            val dur = Calc.fmtMs(now - p.since)
+            if (cand == 1) Notifier.alert(ctx, 1, "💡 Power is back", "It was off for $dur")
+            else Notifier.alert(ctx, 1, "🔌 Power lost", "It was on for $dur")
+        }
+        // At the start of an outage start from the real load, not from the "charging" value
+        if (cand == 0 && st != null) p.ema = (max(st.ongridW, 0.0) + max(st.offgridW, 0.0)).toFloat()
+        History.add(p, now, cand)
+        p.lastGrid = cand
+        p.since = now
+        p.pend = -2
+        p.pendCount = 0
+    }
+
+    private fun checkLoad(ctx: Context, p: Prefs) {
+        val th = p.alertW
+        if (th <= 0) { p.alerted = false; return }
+        if (!p.alerted && p.ema > th) {
+            Notifier.alert(ctx, 3, "⚠ High consumption", "${p.ema.roundToInt()} W (limit $th W)")
+            p.alerted = true
+        } else if (p.alerted && p.ema < th * 0.9f) {
+            p.alerted = false
+        }
     }
 }

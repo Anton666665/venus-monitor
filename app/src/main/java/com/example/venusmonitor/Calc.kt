@@ -1,12 +1,13 @@
 package com.example.venusmonitor
 
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 object Calc {
-    /** Скільки Вт·год ще можна витратити: від SoC вниз до резерву (100 − pct)%. */
-    fun remainingWh(p: Prefs): Double = max(0.0, p.cap * (p.soc - (100 - p.pct)) / 100.0)
+    fun cap(p: Prefs): Int = if (p.useDevCap && p.capDev > 0) p.capDev else p.cap
+
+    /** Energy that can still be used: from the current SoC down to the reserve (100 - pct)%. */
+    fun remainingWh(p: Prefs): Double = max(0.0, cap(p) * (p.soc - (100 - p.pct)) / 100.0)
 
     fun hours(wh: Double, w: Double): Double = if (w < 1.0) Double.POSITIVE_INFINITY else wh / w
 
@@ -16,56 +17,62 @@ object Calc {
         val d = m / 1440
         val hh = (m % 1440) / 60
         val mm = m % 60
-        return if (d > 0) "$d д $hh г" else "$hh г $mm хв"
-    }
-
-    fun gridText(p: Prefs): String {
-        val dur = if (p.since > 0) " · вже " + fmt((System.currentTimeMillis() - p.since) / 3600000.0) else ""
-        return when (p.lastGrid) {
-            1 -> "💡 Світло є$dur"
-            0 -> "🔌 Світла немає$dur"
-            else -> "❔ Світло: невідомо"
+        return when {
+            d > 0 -> "$d d $hh h"
+            hh > 0 -> "$hh h $mm min"
+            else -> "$mm min"
         }
     }
 
-    /** 1 = заряд, -1 = розряд, 0 = очікування. */
-    // Якщо батарея не віддає bat_power, а світла немає — це точно розряд із потужністю навантаження
-    private fun fallback(p: Prefs) = abs(p.batW) < 20f && p.lastGrid == 0 && p.ema >= 20f
+    fun fmtMs(ms: Long): String = fmt(ms / 3600000.0)
 
-    private fun powerW(p: Prefs): Int = if (fallback(p)) p.ema.roundToInt() else abs(p.batW).roundToInt()
-
-    fun direction(p: Prefs): Int {
-        val b = p.batW
-        if (abs(b) < 20f) return if (fallback(p)) -1 else 0
-        val plusIsCharge = p.signMode == 1 || (p.signMode == 0 && p.dischargeSign != 1)
-        return if ((b > 0) == plusIsCharge) 1 else -1
+    fun gridText(p: Prefs): String {
+        val dur = if (p.since > 0 && p.lastGrid != -1) " · for " + fmtMs(System.currentTimeMillis() - p.since) else ""
+        return when (p.lastGrid) {
+            1 -> "💡 Power on$dur"
+            0 -> "🔌 No power$dur"
+            else -> "❔ Power status unknown"
+        }
     }
 
-    /** Час до 100%: до 90% з поточною потужністю, далі з потужністю taperW. */
+    /** Power drawn from the grid to charge the battery (the on-grid port reports it as negative). */
+    fun chargeW(p: Prefs): Float = if (p.onW < -20f) -p.onW else 0f
+
+    /** Power delivered to the home (on-grid + backup output). */
+    fun loadW(p: Prefs): Float = max(p.onW, 0f) + max(p.offW, 0f)
+
+    /** 1 = charging, -1 = discharging, 0 = standby. */
+    fun direction(p: Prefs): Int = when {
+        chargeW(p) > 0f -> 1
+        p.onW > 20f -> -1
+        p.lastGrid != 1 && p.offW > 20f -> -1
+        else -> 0
+    }
+
     fun toFull(p: Prefs): Double {
-        val pw = abs(p.batW).toDouble()
-        if (pw < 50.0) return Double.POSITIVE_INFINITY
-        val tp = 90
-        val c = p.cap.toDouble()
-        return if (p.soc >= tp) c * (100 - p.soc) / 100.0 / pw
-        else c * (tp - p.soc) / 100.0 / pw + c * (100 - tp) / 100.0 / p.taperW
+        val w = chargeW(p).toDouble()
+        return hours(cap(p) * (100 - p.soc) / 100.0, w)
     }
 
     fun stateLine(p: Prefs): String {
-        val t = if (p.temp.isNaN()) " · 🌡 н/д" else " · 🌡 ${p.temp.roundToInt()}°C"
-        val w = powerW(p)
+        val t = if (p.temp.isNaN()) " · 🌡 n/a" else " · 🌡 ${p.temp.roundToInt()}°C"
         return when (direction(p)) {
-            1 -> "⬆ Заряд $w Вт$t"
-            -1 -> "⬇ Розряд $w Вт$t"
-            else -> "⏸ Очікування$t"
+            1 -> "⬆ Charging ${chargeW(p).roundToInt()} W$t"
+            -1 -> "⬇ Discharging ${loadW(p).roundToInt()} W$t"
+            else -> "⏸ Standby$t"
         }
     }
 
-    fun loadLine(p: Prefs): String = "🏠 Споживання: ${p.ema.roundToInt()} Вт"
+    fun loadLine(p: Prefs): String = "🏠 Load: ${p.ema.roundToInt()} W"
 
     fun etaLine(p: Prefs): String = when {
-        direction(p) == 1 -> "⏱ до повного заряду: " + fmt(toFull(p))
-        p.soc >= 99 && p.lastGrid == 1 -> "✅ Заряджено"
-        else -> "⏱ вистачить (до ${100 - p.pct}%): " + fmt(hours(remainingWh(p), p.ema.toDouble()))
+        direction(p) == 1 -> if (p.soc >= 100) "✅ Fully charged" else "⏱ Full in: " + fmt(toFull(p))
+        p.soc >= 99 && p.lastGrid == 1 -> "✅ Fully charged"
+        else -> "⏱ Lasts (to ${100 - p.pct}%): " + fmt(hours(remainingWh(p), p.ema.toDouble()))
+    }
+
+    fun summary(p: Prefs): String {
+        val g = when (p.lastGrid) { 1 -> "💡 on"; 0 -> "🔌 off"; else -> "❔" }
+        return "${p.soc}% · $g · load ${p.ema.roundToInt()} W"
     }
 }

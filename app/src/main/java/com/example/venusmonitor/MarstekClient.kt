@@ -5,13 +5,17 @@ import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Marstek Open API: UDP + JSON-RPC (за замовчуванням порт 30000). */
+/** Marstek Open API: UDP + JSON-RPC (default port 30000). */
 object MarstekClient {
-    data class Status(val soc: Int, val pvW: Double, val ongridW: Double, val offgridW: Double, val batW: Double, val tempC: Double, val raw: String)
+    data class Status(
+        val soc: Int, val pvW: Double, val ongridW: Double, val offgridW: Double,
+        val batW: Double, val tempC: Double, val capWh: Double, val raw: String
+    )
 
-    // Батарея відповідає на той самий порт, тому локальний сокет теж прив'язуємо до нього
+    // The battery replies to the same port, so the local socket is bound to it as well
     private fun socket(port: Int, timeoutMs: Int): DatagramSocket {
         val s = DatagramSocket(null)
         s.reuseAddress = true
@@ -28,7 +32,14 @@ object MarstekClient {
         return JSONObject(String(p.data, 0, p.length)).optJSONObject("result")
     }
 
-    private fun nz(d: Double): Double = if (d.isNaN()) 0.0 else d
+    /** Some firmwares send negative power as an unsigned number (e.g. 64466 instead of -1070). */
+    private fun norm(v: Double): Double {
+        if (v.isNaN()) return 0.0
+        var x = v
+        if (x >= 2147483648.0) x -= 4294967296.0
+        else if (x in 32768.0..65535.0) x -= 65536.0
+        return if (abs(x) > 20000.0) 0.0 else x
+    }
 
     fun status(ip: String, port: Int): Status? {
         try {
@@ -72,10 +83,13 @@ object MarstekClient {
                 }
                 val soc = num("bat_soc", "soc")
                 if (soc.isNaN()) return null
+                val rated = num("rated_capacity")
+                val bc = num("bat_cap")
+                val cap = if (!rated.isNaN() && rated > 500) rated else if (!bc.isNaN() && bc > 500) bc else Double.NaN
                 return Status(
-                    soc.roundToInt(), nz(num("pv_power")),
-                    nz(num("ongrid_power")), nz(num("offgrid_power")),
-                    nz(num("bat_power")), findTemp(), sb.toString()
+                    soc.roundToInt(), norm(num("pv_power")),
+                    norm(num("ongrid_power")), norm(num("offgrid_power")),
+                    norm(num("bat_power")), findTemp(), cap, sb.toString()
                 )
             }
         } catch (e: Exception) {
@@ -83,7 +97,7 @@ object MarstekClient {
         }
     }
 
-    /** Пошук батареї в локальній мережі (broadcast). */
+    /** Find the battery on the local network (broadcast). */
     fun discover(port: Int): String? {
         try {
             socket(port, 2500).use { s ->

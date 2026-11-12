@@ -23,6 +23,8 @@
         android:textColor="#FFFFFF" android:textSize="16sp" />
     <TextView android:id="@+id/w_eta" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:textColor="#DDDDDD" android:textSize="16sp" />
+    <TextView android:id="@+id/w_hist" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textColor="#DDDDDD" android:textSize="16sp" android:visibility="gone" />
     <TextView android:id="@+id/w_upd" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:textColor="#9AA0A6" android:textSize="12sp" />
 </LinearLayout>
