@@ -16,13 +16,13 @@
             android:text="🔄" android:textSize="22sp" android:padding="6dp" />
     </LinearLayout>
     <TextView android:id="@+id/w_grid" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textColor="#FFD54F" android:textSize="14sp" />
+        android:textColor="#FFD54F" android:textSize="16sp" />
     <TextView android:id="@+id/w_state" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textColor="#FFFFFF" android:textSize="14sp" />
+        android:textColor="#FFFFFF" android:textSize="16sp" />
     <TextView android:id="@+id/w_load" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textColor="#FFFFFF" android:textSize="14sp" />
+        android:textColor="#FFFFFF" android:textSize="16sp" />
     <TextView android:id="@+id/w_eta" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textColor="#DDDDDD" android:textSize="14sp" />
+        android:textColor="#DDDDDD" android:textSize="16sp" />
     <TextView android:id="@+id/w_upd" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textColor="#9AA0A6" android:textSize="11sp" />
+        android:textColor="#9AA0A6" android:textSize="12sp" />
 </LinearLayout>
