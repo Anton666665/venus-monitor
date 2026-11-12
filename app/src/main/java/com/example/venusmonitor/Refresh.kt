@@ -15,16 +15,22 @@ object Refresh {
         val p = Prefs(ctx)
         val st = if (p.ip.isBlank()) null else MarstekClient.status(p.ip, p.port)
         if (st != null) {
+            val now = System.currentTimeMillis()
             val load = abs(st.ongridW) + abs(st.offgridW)
-            p.ema = if (p.ts == 0L || p.ema <= 0f) load.toFloat() else (0.3 * load + 0.7 * p.ema).toFloat()
+            // Якщо дані давно не оновлювались — беремо нове значення без згладжування
+            val fresh = p.ts == 0L || p.ema <= 0f || now - p.ts > 120_000
+            p.ema = if (fresh) load.toFloat() else (0.3 * load + 0.7 * p.ema).toFloat()
             p.soc = st.soc
             p.onW = st.ongridW.toFloat()
             p.offW = st.offgridW.toFloat()
             p.batW = st.batW.toFloat()
             p.pvW = st.pvW.toFloat()
-            p.ts = System.currentTimeMillis()
+            p.temp = st.tempC.toFloat()
+            p.ts = now
         }
         updateGrid(ctx, p, st)
+        // Коли світла точно немає, розряд батареї показує, який знак у "bat_power" означає розряд
+        if (st != null && p.lastGrid == 0 && abs(st.batW) > 30) p.dischargeSign = if (st.batW > 0) 1 else -1
         VenusWidget.updateAll(ctx)
         return st != null
     }
@@ -44,6 +50,8 @@ object Refresh {
         }
         if (now == -1 || now == p.lastGrid) return
         if (p.lastGrid != -1) notify(ctx, if (now == 1) "💡 Світло з'явилось" else "🔌 Світло зникло")
+        // На початку відключення стартуємо з реального навантаження, а не з "зарядного" значення
+        if (now == 0 && st != null) p.ema = (abs(st.ongridW) + abs(st.offgridW)).toFloat()
         p.lastGrid = now
         p.since = System.currentTimeMillis()
     }

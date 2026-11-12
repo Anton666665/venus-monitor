@@ -6,11 +6,13 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
-import android.view.View
 import android.widget.*
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
@@ -21,8 +23,9 @@ class MainActivity : Activity() {
     private lateinit var etIp: EditText
     private lateinit var etCap: EditText
     private lateinit var etPct: EditText
-    private lateinit var etAvg: EditText
+    private lateinit var etTaper: EditText
     private lateinit var spGrid: Spinner
+    private lateinit var spSign: Spinner
     private val h = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -53,8 +56,8 @@ class MainActivity : Activity() {
             }
         })
         etCap = field(root, "Повна ємність, Вт·год", p.cap.toString(), true)
-        etPct = field(root, "Скільки % ємності можна витратити", p.pct.toString(), true)
-        etAvg = field(root, "Середнє споживання, Вт", p.avg.toString(), true)
+        etPct = field(root, "Скільки % ємності можна витратити (решта — запас)", p.pct.toString(), true)
+        etTaper = field(root, "Потужність зарядки вище 90%, Вт", p.taperW.toString(), true)
 
         root.addView(TextView(this).apply { text = "Як визначати наявність світла"; setPadding(0, 24, 0, 0) })
         spGrid = Spinner(this).apply {
@@ -63,6 +66,14 @@ class MainActivity : Activity() {
             setSelection(p.gridMode)
         }
         root.addView(spGrid)
+
+        root.addView(TextView(this).apply { text = "Знак потужності батареї (якщо заряд/розряд показує навпаки)"; setPadding(0, 24, 0, 0) })
+        spSign = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
+                arrayOf("Авто", "Плюс = заряд", "Плюс = розряд"))
+            setSelection(p.signMode)
+        }
+        root.addView(spSign)
 
         root.addView(Button(this).apply { text = "Зберегти"; setOnClickListener { save() } })
 
@@ -89,8 +100,10 @@ class MainActivity : Activity() {
         p.ip = etIp.text.toString().trim()
         p.cap = (etCap.text.toString().toIntOrNull() ?: 5120).coerceAtLeast(100)
         p.pct = (etPct.text.toString().toIntOrNull() ?: 80).coerceIn(1, 100)
-        p.avg = (etAvg.text.toString().toIntOrNull() ?: 300).coerceAtLeast(1)
+        p.taperW = (etTaper.text.toString().toIntOrNull() ?: 1070).coerceAtLeast(100)
         p.gridMode = spGrid.selectedItemPosition
+        p.signMode = spSign.selectedItemPosition
+        p.dischargeSign = 0
         p.lastGrid = -1
         render()
         thread { Refresh.run(this); runOnUiThread { render() } }
@@ -104,15 +117,16 @@ class MainActivity : Activity() {
             status.text = "Даних ще немає. Вкажіть IP батареї та натисніть «Зберегти»."
             return
         }
-        val rem = Calc.remainingWh(p)
         val age = (System.currentTimeMillis() - p.ts) / 1000
+        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(p.ts))
         status.text = buildString {
-            append("🔋 ${p.soc}% · можна витратити ${rem.roundToInt()} Вт·год (з ${p.cap * p.pct / 100})\n")
-            append(Calc.gridText(p)).append("\n\n")
-            append("⏱ За вашим середнім (${p.avg} Вт): ${Calc.fmt(Calc.hours(rem, p.avg.toDouble()))}\n")
-            append("⏱ За реальним (${p.ema.roundToInt()} Вт): ${Calc.fmt(Calc.hours(rem, p.ema.toDouble()))}\n\n")
+            append("🔋 ${p.soc}% · можна витратити ${Calc.remainingWh(p).roundToInt()} Вт·год (з ${p.cap * p.pct / 100})\n")
+            append(Calc.gridText(p)).append("\n")
+            append(Calc.stateLine(p)).append("\n")
+            append(Calc.etaLine(p)).append("\n\n")
+            append("реальне навантаження: ${p.ema.roundToInt()} Вт\n")
             append("ongrid=${p.onW} offgrid=${p.offW} bat=${p.batW} pv=${p.pvW}\n")
-            append(if (age > 120) "⚠ немає зв'язку вже $age с" else "оновлено $age с тому")
+            append(if (age > 120) "⚠ немає зв'язку вже $age с (останні дані $time)" else "оновлено $time")
         }
     }
 }

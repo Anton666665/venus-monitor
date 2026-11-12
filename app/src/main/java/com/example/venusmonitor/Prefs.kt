@@ -18,12 +18,15 @@ class Prefs(ctx: Context) {
     var pct: Int // який % ємності можна витратити
         get() = sp.getInt("pct", 80)
         set(v) = sp.edit().putInt("pct", v).apply()
-    var avg: Int // середнє споживання, Вт (задає користувач)
-        get() = sp.getInt("avg", 300)
-        set(v) = sp.edit().putInt("avg", v).apply()
+    var taperW: Int // потужність зарядки вище 90%, Вт
+        get() = sp.getInt("taperW", 1070)
+        set(v) = sp.edit().putInt("taperW", v).apply()
     var gridMode: Int // 0 = за даними батареї, 1 = за зарядкою телефона
         get() = sp.getInt("gridMode", 0)
         set(v) = sp.edit().putInt("gridMode", v).apply()
+    var signMode: Int // знак потужності батареї: 0 авто, 1 "+" = заряд, 2 "+" = розряд
+        get() = sp.getInt("signMode", 0)
+        set(v) = sp.edit().putInt("signMode", v).apply()
 
     // Останні дані
     var soc: Int
@@ -41,6 +44,9 @@ class Prefs(ctx: Context) {
     var pvW: Float
         get() = sp.getFloat("pvW", 0f)
         set(v) = sp.edit().putFloat("pvW", v).apply()
+    var temp: Float
+        get() = sp.getFloat("temp", Float.NaN)
+        set(v) = sp.edit().putFloat("temp", v).apply()
     var ema: Float // згладжене реальне навантаження, Вт
         get() = sp.getFloat("ema", 0f)
         set(v) = sp.edit().putFloat("ema", v).apply()
@@ -53,4 +59,7 @@ class Prefs(ctx: Context) {
     var since: Long
         get() = sp.getLong("since", 0L)
         set(v) = sp.edit().putLong("since", v).apply()
+    var dischargeSign: Int // вивчений знак: 1 = "+" це розряд, -1 = "−" це розряд, 0 = невідомо
+        get() = sp.getInt("dischargeSign", 0)
+        set(v) = sp.edit().putInt("dischargeSign", v).apply()
 }

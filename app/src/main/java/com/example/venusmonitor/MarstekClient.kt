@@ -8,7 +8,7 @@ import java.net.InetSocketAddress
 
 /** Marstek Open API: UDP + JSON-RPC (за замовчуванням порт 30000). */
 object MarstekClient {
-    data class Status(val soc: Int, val pvW: Double, val ongridW: Double, val offgridW: Double, val batW: Double)
+    data class Status(val soc: Int, val pvW: Double, val ongridW: Double, val offgridW: Double, val batW: Double, val tempC: Double)
 
     // Батарея відповідає на той самий порт, тому локальний сокет теж прив'язуємо до нього
     private fun socket(port: Int, timeoutMs: Int): DatagramSocket {
@@ -43,10 +43,12 @@ object MarstekClient {
                     }
                 }
                 if (soc < 0) return null
+                val b = try { call(s, ip, port, "Bat.GetStatus", JSONObject().put("id", 0)) } catch (e: Exception) { null }
+                val temp = b?.optDouble("bat_temp", Double.NaN) ?: Double.NaN
                 return Status(
                     soc, st.optDouble("pv_power", 0.0),
                     if (on.isNaN()) 0.0 else on, if (off.isNaN()) 0.0 else off,
-                    st.optDouble("bat_power", 0.0)
+                    st.optDouble("bat_power", 0.0), temp
                 )
             }
         } catch (e: Exception) {
