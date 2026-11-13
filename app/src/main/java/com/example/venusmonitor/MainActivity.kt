@@ -141,11 +141,12 @@ class MainActivity : Activity() {
         val age = (System.currentTimeMillis() - p.ts) / 1000
         val time = SimpleDateFormat("HH:mm:ss", Locale.ENGLISH).format(Date(p.ts))
         status.text = buildString {
-            append("🔋 ${p.soc}% · ${Calc.remainingWh(p).roundToInt()} Wh usable (of ${Calc.cap(p)} Wh)\n")
+            append("🔋 ${p.soc}% · ${Calc.remainingWh(p).roundToInt()} Wh usable (${Calc.storedWh(p)} of ${Calc.cap(p)} Wh stored)\n")
             append(Calc.gridText(p)).append("\n")
             append(Calc.stateLine(p)).append("\n")
-            append(Calc.loadLine(p)).append("\n")
             append(Calc.etaLine(p)).append("\n")
+            val avg = Usage.avgW(p)
+            append(if (avg > 0) "📊 Avg load while discharging (5 days): ${avg.roundToInt()} W\n" else "📊 Collecting discharge data for the average…\n")
             append("\n")
             append("ongrid=${p.onW} offgrid=${p.offW} bat=${p.batW} pv=${p.pvW}\n")
             append(if (age > 120) "⚠ no connection for $age s (last data $time)" else "updated $time")

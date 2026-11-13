@@ -19,8 +19,6 @@
         android:textColor="#FFD54F" android:textSize="15sp" />
     <TextView android:id="@+id/w_state" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:textColor="#FFFFFF" android:textSize="15sp" android:visibility="gone" />
-    <TextView android:id="@+id/w_load" android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:textColor="#FFFFFF" android:textSize="15sp" android:visibility="gone" />
     <TextView android:id="@+id/w_eta" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:textColor="#DDDDDD" android:textSize="15sp" android:visibility="gone" />
     <TextView android:id="@+id/w_hist" android:layout_width="wrap_content" android:layout_height="wrap_content"

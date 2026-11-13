@@ -16,6 +16,7 @@ object Refresh {
 
     private fun runInner(ctx: Context): Boolean {
         val p = Prefs(ctx)
+        val prevTs = p.ts
         val st = if (p.ip.isBlank()) null else MarstekClient.status(p.ip, p.port)
         if (st != null) {
             val now = System.currentTimeMillis()
@@ -34,6 +35,10 @@ object Refresh {
             p.ts = now
         }
         updateGrid(ctx, p, st)
+        if (st != null && prevTs > 0) {
+            val dt = (p.ts - prevTs) / 1000.0
+            if (dt >= 1.0 && dt <= 300.0 && Calc.direction(p) == -1) Usage.add(p, Calc.loadW(p).toDouble(), dt, p.ts)
+        }
         checkLoad(ctx, p)
         checkLow(ctx, p)
         Widgets.updateAll(ctx)

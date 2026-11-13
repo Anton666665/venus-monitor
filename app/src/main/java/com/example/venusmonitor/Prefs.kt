@@ -72,6 +72,10 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("ts", 0L)
         set(v) = sp.edit().putLong("ts", v).apply()
 
+    var usage: String // "yyyyMMdd,Wh,seconds;..." consumption while discharging, last 5 days
+        get() = sp.getString("usage", "") ?: ""
+        set(v) = sp.edit().putString("usage", v).apply()
+
     // ---- Grid state ----
     var lastGrid: Int // -1 unknown, 0 no power, 1 power on
         get() = sp.getInt("lastGrid", -1)

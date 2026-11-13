@@ -12,6 +12,9 @@ object Calc {
     /** Energy that can still be used: from the current SoC down to the reserve (100 - pct)%. */
     fun remainingWh(p: Prefs): Double = max(0.0, cap(p) * (p.soc - (100 - p.pct)) / 100.0)
 
+    /** Energy that is in the battery right now (total, including the reserve). */
+    fun storedWh(p: Prefs): Int = (cap(p) * p.soc / 100.0).roundToInt()
+
     fun hours(wh: Double, w: Double): Double = if (w < 1.0) Double.POSITIVE_INFINITY else wh / w
 
     fun fmt(h: Double): String {
@@ -79,8 +82,6 @@ object Calc {
         }
     }
 
-    fun loadLine(p: Prefs): String = "🏠 Load: ${p.ema.roundToInt()} W"
-
     fun etaLine(p: Prefs): String = when {
         direction(p) == 1 -> if (p.soc >= 100) "✅ Fully charged" else {
             val h = toFull(p)
@@ -88,8 +89,10 @@ object Calc {
         }
         p.soc >= 99 && p.lastGrid == 1 -> "✅ Fully charged"
         else -> {
-            val h = hours(remainingWh(p), p.ema.toDouble())
-            "⏱ Lasts to ${100 - p.pct}%: " + fmt(h) + until(h)
+            val avg = Usage.avgW(p)
+            val w = if (avg > 0) avg else loadW(p).toDouble()
+            val h = hours(remainingWh(p), w)
+            "⏱ Lasts to ${100 - p.pct}%" + (if (avg > 0) "" else " (at current load)") + ": " + fmt(h) + until(h)
         }
     }
 

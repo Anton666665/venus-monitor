@@ -56,18 +56,16 @@ object Widgets {
             rv.setTextViewText(R.id.w_main, "Venus: no data")
             rv.setTextViewText(R.id.w_grid, "")
             rv.setTextViewText(R.id.w_state, "")
-            rv.setTextViewText(R.id.w_load, "")
             rv.setTextViewText(R.id.w_eta, "")
             rv.setTextViewText(R.id.w_hist, "")
         } else {
             val sb = SpannableStringBuilder("🔋 ${p.soc}% · ${Calc.remainingWh(p).roundToInt()} Wh")
             val from = sb.length
-            sb.append(" (${Calc.cap(p)})")
+            sb.append(" (${Calc.storedWh(p)})")
             sb.setSpan(RelativeSizeSpan(0.7f), from, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             rv.setTextViewText(R.id.w_main, sb)
             rv.setTextViewText(R.id.w_grid, Calc.gridText(p))
             rv.setTextViewText(R.id.w_state, Calc.stateLine(p))
-            rv.setTextViewText(R.id.w_load, Calc.loadLine(p))
             rv.setTextViewText(R.id.w_eta, Calc.etaLine(p))
             rv.setTextViewText(R.id.w_hist, History.todayLine(p))
         }
