@@ -1,5 +1,8 @@
 package com.example.venusmonitor
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -25,6 +28,19 @@ object Calc {
     }
 
     fun fmtMs(ms: Long): String = fmt(ms / 3600000.0)
+
+    /** Clock time of a timestamp: "HH:mm" today, "EEE HH:mm" on another day. */
+    fun clock(ts: Long): String {
+        val now = System.currentTimeMillis()
+        val same = ts >= History.dayStart(now, 0) && ts < History.dayStart(now, -1)
+        return SimpleDateFormat(if (same) "HH:mm" else "EEE HH:mm", Locale.ENGLISH).format(Date(ts))
+    }
+
+    /** " (until 05:40)" — the moment when "h" hours from now arrives. */
+    fun at(h: Double, word: String): String =
+        if (h.isNaN() || h.isInfinite()) "" else " ($word ${clock(System.currentTimeMillis() + (h * 3600000).toLong())})"
+
+    fun until(h: Double): String = at(h, "until")
 
     fun gridText(p: Prefs): String {
         val dur = if (p.since > 0 && p.lastGrid != -1) " · for " + fmtMs(System.currentTimeMillis() - p.since) else ""
@@ -66,9 +82,15 @@ object Calc {
     fun loadLine(p: Prefs): String = "🏠 Load: ${p.ema.roundToInt()} W"
 
     fun etaLine(p: Prefs): String = when {
-        direction(p) == 1 -> if (p.soc >= 100) "✅ Fully charged" else "⏱ Full in: " + fmt(toFull(p))
+        direction(p) == 1 -> if (p.soc >= 100) "✅ Fully charged" else {
+            val h = toFull(p)
+            "⏱ Full in: " + fmt(h) + at(h, "at")
+        }
         p.soc >= 99 && p.lastGrid == 1 -> "✅ Fully charged"
-        else -> "⏱ Lasts (to ${100 - p.pct}%): " + fmt(hours(remainingWh(p), p.ema.toDouble()))
+        else -> {
+            val h = hours(remainingWh(p), p.ema.toDouble())
+            "⏱ Lasts to ${100 - p.pct}%: " + fmt(h) + until(h)
+        }
     }
 
     fun summary(p: Prefs): String {

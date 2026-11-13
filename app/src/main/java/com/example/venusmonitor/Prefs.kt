@@ -34,6 +34,12 @@ class Prefs(ctx: Context) {
         get() = sp.getInt("gridMode", 0)
         set(v) = sp.edit().putInt("gridMode", v).apply()
 
+    var lowPct: Int // low charge alert threshold, % (0 = off)
+        get() = sp.getInt("lowPct", 40)
+        set(v) = sp.edit().putInt("lowPct", v).apply()
+    var lowAlerted: Boolean
+        get() = sp.getBoolean("lowAlerted", false)
+        set(v) = sp.edit().putBoolean("lowAlerted", v).apply()
     // ---- Latest data ----
     var soc: Int
         get() = sp.getInt("soc", -1)

@@ -28,6 +28,7 @@ class MainActivity : Activity() {
     private lateinit var etPct: EditText
     private lateinit var etAlert: EditText
     private lateinit var etPoll: EditText
+    private lateinit var etLow: EditText
     private lateinit var cbDevCap: CheckBox
     private lateinit var cbMonitor: CheckBox
     private lateinit var spGrid: Spinner
@@ -73,6 +74,7 @@ class MainActivity : Activity() {
         etPct = field(root, "Usable share of capacity, % (the rest is kept as reserve)", p.pct.toString(), true)
         etAlert = field(root, "Alert when load is above, W (0 = off)", p.alertW.toString(), true)
         etPoll = field(root, "Background check interval, seconds (min 10)", p.pollSec.toString(), true)
+        etLow = field(root, "Low charge alert at, % (0 = off)", p.lowPct.toString(), true)
         cbMonitor = CheckBox(this).apply { text = "Background monitoring (alerts without opening the app)"; isChecked = p.monitor }
         root.addView(cbMonitor)
 
@@ -119,6 +121,7 @@ class MainActivity : Activity() {
         p.alertW = (etAlert.text.toString().toIntOrNull() ?: 0).coerceAtLeast(0)
         p.pollSec = (etPoll.text.toString().toIntOrNull() ?: 30).coerceAtLeast(10)
         p.monitor = cbMonitor.isChecked
+        p.lowPct = (etLow.text.toString().toIntOrNull() ?: 40).coerceIn(0, 100)
         val mode = spGrid.selectedItemPosition
         if (mode != p.gridMode) { p.gridMode = mode; p.lastGrid = -1 }
         applyService()
@@ -142,7 +145,8 @@ class MainActivity : Activity() {
             append(Calc.gridText(p)).append("\n")
             append(Calc.stateLine(p)).append("\n")
             append(Calc.loadLine(p)).append("\n")
-            append(Calc.etaLine(p)).append("\n\n")
+            append(Calc.etaLine(p)).append("\n")
+            append("\n")
             append("ongrid=${p.onW} offgrid=${p.offW} bat=${p.batW} pv=${p.pvW}\n")
             append(if (age > 120) "⚠ no connection for $age s (last data $time)" else "updated $time")
         }

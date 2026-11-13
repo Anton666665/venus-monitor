@@ -35,6 +35,7 @@ object Refresh {
         }
         updateGrid(ctx, p, st)
         checkLoad(ctx, p)
+        checkLow(ctx, p)
         Widgets.updateAll(ctx)
         return st != null
     }
@@ -72,10 +73,25 @@ object Refresh {
         // At the start of an outage start from the real load, not from the "charging" value
         if (cand == 0 && st != null) p.ema = (max(st.ongridW, 0.0) + max(st.offgridW, 0.0)).toFloat()
         History.add(p, now, cand)
+        if (cand == 1) p.lowAlerted = false
         p.lastGrid = cand
         p.since = now
         p.pend = -2
         p.pendCount = 0
+    }
+
+    private fun checkLow(ctx: Context, p: Prefs) {
+        val th = p.lowPct
+        if (th <= 0 || p.soc < 0) { p.lowAlerted = false; return }
+        val onBattery = p.lastGrid == 0 || Calc.direction(p) == -1
+        if (!p.lowAlerted && onBattery && p.soc <= th) {
+            val h = Calc.hours(Calc.remainingWh(p), p.ema.toDouble())
+            Notifier.alert(ctx, 4, "🔋 Battery at ${p.soc}%",
+                "Lasts about ${Calc.fmt(h)}${Calc.until(h)} (down to ${100 - p.pct}%)")
+            p.lowAlerted = true
+        } else if (p.lowAlerted && p.soc > th + 3) {
+            p.lowAlerted = false
+        }
     }
 
     private fun checkLoad(ctx: Context, p: Prefs) {
