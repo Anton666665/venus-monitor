@@ -146,7 +146,10 @@ class MainActivity : Activity() {
             append(Calc.stateLine(p)).append("\n")
             append(Calc.etaLine(p)).append("\n")
             val avg = Usage.avgW(p)
-            append(if (avg > 0) "📊 Avg load while discharging (5 days): ${avg.roundToInt()} W\n" else "📊 Collecting discharge data for the average…\n")
+            if (avg > 0) {
+                fun sv(i: Int) = if (Usage.hasSeg(p, i)) "${Usage.segAvgW(p, i).roundToInt()} W" else "n/a"
+                append("📊 Avg load (5 days): 00–08 ${sv(0)} · 08–16 ${sv(1)} · 16–24 ${sv(2)}\n")
+            } else append("📊 Collecting discharge data for the average…\n")
             append("\n")
             append("ongrid=${p.onW} offgrid=${p.offW} bat=${p.batW} pv=${p.pvW}\n")
             append(if (age > 120) "⚠ no connection for $age s (last data $time)" else "updated $time")

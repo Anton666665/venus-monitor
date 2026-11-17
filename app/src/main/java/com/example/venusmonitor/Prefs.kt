@@ -72,7 +72,7 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("ts", 0L)
         set(v) = sp.edit().putLong("ts", v).apply()
 
-    var usage: String // "yyyyMMdd,Wh,seconds;..." consumption while discharging, last 5 days
+    var usage: String // "yyyyMMdd,seg,Wh,seconds;..." consumption while discharging, last 5 days
         get() = sp.getString("usage", "") ?: ""
         set(v) = sp.edit().putString("usage", v).apply()
 

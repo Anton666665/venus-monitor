@@ -45,6 +45,11 @@ object Calc {
 
     fun until(h: Double): String = at(h, "until")
 
+    /** " (until 05:40, 18.11)" — time and date when "h" hours from now arrive. */
+    fun untilDate(h: Double): String =
+        if (h.isNaN() || h.isInfinite()) ""
+        else " (until " + SimpleDateFormat("HH:mm, dd.MM", Locale.ENGLISH).format(Date(System.currentTimeMillis() + (h * 3600000).toLong())) + ")"
+
     fun gridText(p: Prefs): String {
         val dur = if (p.since > 0 && p.lastGrid != -1) " · for " + fmtMs(System.currentTimeMillis() - p.since) else ""
         return when (p.lastGrid) {
@@ -89,10 +94,14 @@ object Calc {
         }
         p.soc >= 99 && p.lastGrid == 1 -> "✅ Fully charged"
         else -> {
-            val avg = Usage.avgW(p)
-            val w = if (avg > 0) avg else loadW(p).toDouble()
-            val h = hours(remainingWh(p), w)
-            "⏱ Lasts to ${100 - p.pct}%" + (if (avg > 0) "" else " (at current load)") + ": " + fmt(h) + until(h)
+            val name = "Lasts to ${100 - p.pct}%"
+            val rem = remainingWh(p)
+            val h1 = hours(rem, loadW(p).toDouble())
+            val line1 = "⏱ $name: " + fmt(h1) + untilDate(h1)
+            val h2 = Usage.hoursLeft(p, rem, System.currentTimeMillis())
+            val line2 = if (h2.isNaN()) "📊 Avg $name: collecting data…"
+            else "📊 Avg $name: " + fmt(h2) + untilDate(h2)
+            line1 + "\n" + line2
         }
     }
 

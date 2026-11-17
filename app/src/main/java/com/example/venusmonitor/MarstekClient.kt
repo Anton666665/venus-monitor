@@ -56,9 +56,8 @@ object MarstekClient {
                     }
                 }
                 val st = q("ES.GetStatus") ?: return null
-                val mode = q("ES.GetMode")
                 val bat = q("Bat.GetStatus")
-                val all = listOfNotNull(st, mode, bat)
+                val all = listOfNotNull(st, bat)
                 fun num(vararg keys: String): Double {
                     for (j in all) for (k in keys) {
                         if (j.has(k)) {
