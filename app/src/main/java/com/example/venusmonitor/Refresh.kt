@@ -17,6 +17,7 @@ object Refresh {
     private fun runInner(ctx: Context): Boolean {
         val p = Prefs(ctx)
         val prevTs = p.ts
+        val prevSoc = p.soc
         val st = if (p.ip.isBlank()) null else MarstekClient.status(p.ip, p.port)
         if (st != null) {
             val now = System.currentTimeMillis()
@@ -33,6 +34,9 @@ object Refresh {
             p.raw = st.raw
             if (!st.capWh.isNaN() && st.capWh > 500) p.capDev = st.capWh.roundToInt()
             p.ts = now
+            val gap = prevTs > 0 && now - prevTs > 300_000
+            if (gap && prevSoc >= 0) SocLog.add(p, prevTs, prevSoc, true)
+            SocLog.add(p, now, st.soc, gap)
         }
         updateGrid(ctx, p, st)
         if (st != null && prevTs > 0) {

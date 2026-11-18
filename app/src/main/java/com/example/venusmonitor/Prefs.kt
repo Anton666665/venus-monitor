@@ -95,4 +95,7 @@ class Prefs(ctx: Context) {
     var events: String // "timestamp,state;timestamp,state;..."
         get() = sp.getString("events", "") ?: ""
         set(v) = sp.edit().putString("events", v).apply()
+    var socLog: String // "timestamp,soc;..." battery level samples, last ~9 days
+        get() = sp.getString("socLog", "") ?: ""
+        set(v) = sp.edit().putString("socLog", v).apply()
 }

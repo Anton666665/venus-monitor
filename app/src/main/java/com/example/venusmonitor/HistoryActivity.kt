@@ -1,6 +1,7 @@
 package com.example.venusmonitor
 
 import android.app.Activity
+import android.app.TimePickerDialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
@@ -9,6 +10,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.concurrent.thread
@@ -33,6 +35,10 @@ class HistoryActivity : Activity() {
         })
         bar.addView(Button(this).apply { text = "Refresh"; setOnClickListener { refresh() } })
         root.addView(bar)
+        val bar2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        bar2.addView(Button(this).apply { text = "Add: no power since…"; setOnClickListener { pickTime(0) } })
+        bar2.addView(Button(this).apply { text = "Add: power on since…"; setOnClickListener { pickTime(1) } })
+        root.addView(bar2)
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(body)
         setContentView(ScrollView(this).apply { addView(root) })
@@ -46,6 +52,22 @@ class HistoryActivity : Activity() {
 
     private fun refresh() {
         thread { Refresh.run(this); runOnUiThread { render() } }
+    }
+
+    /** Asks for a time (today, or yesterday if it is later than now) and records that the state became `state` then. */
+    private fun pickTime(state: Int) {
+        val c = Calendar.getInstance()
+        TimePickerDialog(this, { _, h, m ->
+            val t = Calendar.getInstance()
+            t.set(Calendar.HOUR_OF_DAY, h)
+            t.set(Calendar.MINUTE, m)
+            t.set(Calendar.SECOND, 0)
+            t.set(Calendar.MILLISECOND, 0)
+            if (t.timeInMillis > System.currentTimeMillis()) t.add(Calendar.DAY_OF_YEAR, -1)
+            History.addManual(p, t.timeInMillis, state)
+            render()
+            Widgets.updateAll(this)
+        }, c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), true).show()
     }
 
     private fun tv(text: String, size: Float, bold: Boolean = false, top: Int = 0): TextView =
@@ -78,7 +100,7 @@ class HistoryActivity : Activity() {
             for (s in d.segs) {
                 val icon = if (s.state == 1) "💡 Power on " else "🔌 No power"
                 val end = if (s.end >= now - 1000) "now" else hm.format(Date(s.end))
-                body.addView(tv("$icon  ${hm.format(Date(s.start))} – $end  (${Calc.fmtMs(s.end - s.start)})", 15f, false, 6))
+                body.addView(tv("$icon  ${hm.format(Date(s.start))} – $end  (${Calc.fmtMs(s.end - s.start)})${History.socText(p, s, now)}", 15f, false, 6))
             }
         }
     }
